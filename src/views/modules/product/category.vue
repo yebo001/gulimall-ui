@@ -1,34 +1,81 @@
 <template>
-  <el-tree
-    :data="menus"
-    :props="defaultProps"
-    :expand-on-click-node="false"
-    show-checkbox
-    node-key="cateId"
-    :default-expanded-keys="expandedKey"
-  >
-    <span class="custom-tree-node" slot-scope="{ node, data }">
-      <span>{{ node.label }}</span>
-      <span>
-        <el-button
-          v-if="node.level <= 2"
-          type="text"
-          size="mini"
-          @click="() => append(data)"
-        >
-          Append
-        </el-button>
-        <el-button
-          v-if="node.childNodes.length == 0"
-          type="text"
-          size="mini"
-          @click="() => remove(node, data)"
-        >
-          Delete
-        </el-button>
+  <div>
+    <el-switch
+      v-model="draggable"
+      active-text="开启拖拽"
+      inactive-text="关闭拖拽"
+    >
+    </el-switch>
+    <el-tree
+      :data="menus"
+      :props="defaultProps"
+      :expand-on-click-node="false"
+      show-checkbox
+      node-key="catId"
+      :default-expanded-keys="expandedKey"
+      :draggable="draggable"
+      :allow-drop="allowDrop"
+    >
+      > >
+      <span class="custom-tree-node" slot-scope="{ node, data }">
+        <span>{{ node.label }}</span>
+        <span>
+          <el-button
+            v-if="node.level <= 2"
+            type="text"
+            size="mini"
+            @click="() => append(data)"
+          >
+            新增
+          </el-button>
+          <el-button
+            v-if="node.level <= 2"
+            type="text"
+            size="mini"
+            @click="() => edit(data)"
+          >
+            修改
+          </el-button>
+          <el-button
+            v-if="node.childNodes.length == 0"
+            type="text"
+            size="mini"
+            @click="() => remove(node, data)"
+          >
+            删除
+          </el-button>
+        </span>
       </span>
-    </span>
-  </el-tree>
+    </el-tree>
+    <el-dialog
+      :title="title"
+      :visible.sync="dialogFormVisible"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="category">
+        <el-form-item label="分类名称">
+          <el-input v-model="category.name" autocomplete="off"></el-input>
+        </el-form-item>
+      </el-form>
+      <el-form :model="category">
+        <el-form-item label="图标">
+          <el-input v-model="category.icon" autocomplete="off"></el-input>
+        </el-form-item>
+      </el-form>
+      <el-form :model="category">
+        <el-form-item label="计量单位">
+          <el-input
+            v-model="category.productUnit"
+            autocomplete="off"
+          ></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="dialogFormVisible = false">取 消</el-button>
+        <el-button type="primary" @click="submitData">确 定</el-button>
+      </div>
+    </el-dialog>
+  </div>
 </template>
 
 <script>
@@ -37,6 +84,9 @@
 import {
   listCategoryTree,
   removeMenuByIds,
+  addCategory,
+  updateCategory,
+  getCategory,
 } from "@/api/modules/product/category";
 
 export default {
@@ -46,6 +96,21 @@ export default {
   data() {
     //这里存放数据
     return {
+      maxLevel: 0,
+      draggable: false,
+      title: "",
+      dialogType: "", //edit,add
+      category: {
+        name: "",
+        parentCid: 0,
+        catLevel: 0,
+        showStatus: 1,
+        sort: 0,
+        icon: "",
+        productUnit: "",
+        catId: null,
+      },
+      dialogFormVisible: false,
       menus: [],
       expandedKey: [],
       defaultProps: {
@@ -60,25 +125,133 @@ export default {
   watch: {},
   //方法集合
   methods: {
+    allowDrop(draggingNode, dropNode, type) {
+      //1 被拖动的当前节点以及所在的父节点总层数不能大于3
+
+      //1 被拖动的当前节点总层数
+      console.log("allowDrop:", draggingNode, dropNode, type);
+
+      var level = this.countNodeLevel(draggingNode);
+
+      // 当前正在拖动的节点+父节点所在的深度不大于3即可
+      let deep = Math.abs(this.maxLevel - draggingNode.level) + 1;
+      console.log("深度:", deep);
+
+      // this.maxLevel
+      if (type == "innner") {
+        // console.log(
+        //   `this.maxLevel: ${this.maxLevel}; draggingNode.data.catLevel:${draggingNode.data.catLevel};dropNode.level: ${dropNode.level}`
+        // );
+        return deep + dropNode.level <= 3;
+      } else {
+        return deep + dropNode.parent.level <= 3;
+      }
+    },
+    countNodeLevel(node) {
+      // 找到所有子节点，求出最大深度
+      if (node.childNodes != null && node.childNodes.length > 0) {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          if (node.childNodes[i].level > this.maxLevel) {
+            this.maxLevel = node.childNodes[i].level;
+          }
+          this.countNodeLevel(node.childNodes);
+        }
+      }
+    },
     getMenus() {
       listCategoryTree().then(({ data }) => {
         this.menus = data;
       });
     },
     append(data) {
-      console.log("append", data);
+      this.dialogType = "add";
+      this.title = "新增分类";
+      this.category.parentCid = data.catId;
+      this.category.catLevel = data.catLevel * 1 + 1;
+      this.category.catId = null;
+      this.category.name = null;
+      this.category.icon = "";
+      this.category.productUnit = "";
+      this.category.sort = 0;
+      this.category.showStatus = 1;
+      this.dialogFormVisible = true;
+    },
+    addCategory() {
+      addCategory(this.category).then(({ data }) => {
+        this.$message({
+          type: "success",
+          message: "菜单保存成功!",
+        });
+        this.dialogFormVisible = false;
+        this.getMenus();
+        this.expandedKey = [this.category.parentCid];
+      });
+    },
+
+    edit(data) {
+      var { catId, icon, name, productUnit, parentCid } = data;
+      this.dialogType = "edit";
+      this.title = "修改分类";
+      //修改前根据与catId查询数据
+      getCategory(catId).then(({ data }) => {
+        console.log("data", data);
+        this.category.catId = catId;
+        this.category.icon = icon;
+        this.category.name = name;
+        this.category.productUnit = productUnit;
+        this.category.parentCid = parentCid;
+        this.dialogFormVisible = true;
+      });
+    },
+
+    editCategory() {
+      var { catId, name, icon, productUnit } = this.category;
+      updateCategory({ catId, name, icon, productUnit }).then(({ data }) => {
+        this.$message({
+          type: "success",
+          message: "菜单修改成功!",
+        });
+        this.dialogFormVisible = false;
+        this.getMenus();
+        this.expandedKey = [this.category.parentCid];
+      });
+    },
+
+    submitData() {
+      this.dialogFormVisible = true;
+      if (this.dialogType == "edit") {
+        console.log("修改");
+        this.editCategory();
+      }
+      if (this.dialogType == "add") {
+        console.log("新增");
+        this.addCategory();
+      }
     },
 
     remove(node, data) {
       var ids = [data.catId];
-      // console.log("remove", node, data);
-      removeMenuByIds(ids).then(({ data }) => {
-        this.getMenus();
-        console.log("remove success", node.parent.data.catId);
-        this.expandedKey = [node.parent.data.catId];
-        // console.log("remove success", this.expandedKey);
-        // this.expandedKey = [342]
-      });
+      this.$confirm(`是否删除【${data.name}】当前菜单?`, "提示", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      })
+        .then(() => {
+          removeMenuByIds(ids).then(({ data }) => {
+            this.$message({
+              type: "success",
+              message: "菜单删除成功!",
+            });
+          });
+          this.getMenus();
+          this.expandedKey = [node.parent.data.catId];
+        })
+        .catch(() => {
+          this.$message({
+            type: "info",
+            message: "已取消删除",
+          });
+        });
     },
   },
   //生命周期 - 创建完成（可以访问当前 this 实例）
