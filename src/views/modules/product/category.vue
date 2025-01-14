@@ -5,6 +5,7 @@
     :expand-on-click-node="false"
     show-checkbox
     node-key="cateId"
+    :default-expanded-keys="expandedKey"
   >
     <span class="custom-tree-node" slot-scope="{ node, data }">
       <span>{{ node.label }}</span>
@@ -33,7 +34,10 @@
 <script>
 //这里可以导入其他文件（比如： 组件， 工具 js， 第三方插件 js， json文件， 图片文件等等）
 //例如： import 《组件名称》 from '《组件路径》 ';
-import { listCategoryTree } from "@/api/product/category";
+import {
+  listCategoryTree,
+  removeMenuByIds,
+} from "@/api/modules/product/category";
 
 export default {
   //import 引入的组件需要注入到对象中才能使用
@@ -43,6 +47,7 @@ export default {
     //这里存放数据
     return {
       menus: [],
+      expandedKey: [],
       defaultProps: {
         children: "children",
         label: "name",
@@ -65,7 +70,15 @@ export default {
     },
 
     remove(node, data) {
-      console.log("remove", node, data);
+      var ids = [data.catId];
+      // console.log("remove", node, data);
+      removeMenuByIds(ids).then(({ data }) => {
+        this.getMenus();
+        console.log("remove success", node.parent.data.catId);
+        this.expandedKey = [node.parent.data.catId];
+        // console.log("remove success", this.expandedKey);
+        // this.expandedKey = [342]
+      });
     },
   },
   //生命周期 - 创建完成（可以访问当前 this 实例）
@@ -83,5 +96,4 @@ export default {
   activated() {}, //如果页面有 keep-alive 缓存功能， 这个函数会触发
 };
 </script>
-<style scoped>
-</style>
+<style scoped></style>

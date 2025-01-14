@@ -35,9 +35,9 @@ export function updateCategory(data) {
 }
 
 // 删除商品三级分类
-export function delCategory(catId) {
+export function removeMenuByIds(catIds) {
   return request({
-    url: '/product/category/' + catId,
+    url: '/product/category/delete/' + catIds,
     method: 'delete'
   })
 }
