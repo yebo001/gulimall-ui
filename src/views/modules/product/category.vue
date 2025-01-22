@@ -6,6 +6,7 @@
       inactive-text="关闭拖拽"
     >
     </el-switch>
+    <el-button @click="batchSave" v-if="draggable">批量保存</el-button>
     <el-tree
       :data="menus"
       :props="defaultProps"
